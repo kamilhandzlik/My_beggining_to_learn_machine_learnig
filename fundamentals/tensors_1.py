@@ -1,6 +1,12 @@
 import torch
 import numpy as np
 
+"""
+I learn with this course:
+https://github.com/mrdbourke/pytorch-deep-learning
+https://www.learnpytorch.io/
+"""
+
 
 # scalar/skalar tak samo jak w matematyce inaczej liczby skalarne operujesz normalnie
 scalar = torch.tensor(7)

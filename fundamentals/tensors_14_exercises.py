@@ -36,7 +36,7 @@ import torch
 
 # 2. Create a random tensor with shape (7, 7).
 random_tensor = torch.rand(7, 7)
-print(f"\033[32mExercise 2\033[0m\n{random_tensor}\n")
+print(f"\033[32mExercise 2\033[0m\n{random_tensor, random_tensor.shape}\n")
 
 
 # 3. Perform a matrix multiplication on the tensor from 2 with another random tensor with shape (1, 7)
