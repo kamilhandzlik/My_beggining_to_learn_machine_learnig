@@ -115,7 +115,7 @@ def plot_predictions(
     plt.show()
 
 
-print(plot_predictions())
+# print(plot_predictions())
 
 
 # II. Build model
@@ -144,8 +144,9 @@ class LiniearRegressionModel(nn.Module):
         self.bias = nn.Parameter(torch.randn(1, requires_grad=True, dtype=torch.float))
 
         # Forward method to difine computation in the model
-        def forward(self, x: torch.Tensor) -> torch.Tensor:  # x- is the input data
-            return self.weights * x + self.bias  # linera regresion data
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # x- is the input data
+        return self.weights * x + self.bias  # linera regresion data
 
 
 """
@@ -160,4 +161,85 @@ PyTorch model building essentials:
 
 4. torch.optim - contains optimization methods on how to improve the parameters
                    within nn.Parameter to better represent input data,
+"""
+
+# Creating random seed
+torch.manual_seed(42)
+
+# Create a model instance (subclass od nn.Module)
+model_0 = LiniearRegressionModel()
+print(list(model_0.parameters()))
+
+
+# List named parameters of the model
+print(model_0.state_dict())
+
+
+# Przewidywanie modelu używając torch.inference_mode()
+
+with torch.inference_mode():
+    y_preds = model_0(X_test)
+    print(y_preds)
+    print(y_test)
+    # print(plot_predictions(predictions=y_preds))
+    print(y_preds == y_test)  # porównanie przewidywań z danymi testowymi
+    print(y_preds[:10], y_test[:10])  # first 10 values of y_preds and y_test
+
+
+# III. Train model
+"""
+Cała idea trenowania modelu polega na tym żeby przeszedł z przypadkowych parametrów
+(współczynników) do współczynników które lepiej pasują do danych i tak w kółko do czasu aż 
+model nie zacznie zachowywać się tak jak chcemy.
+
+Jednym ze sposobów na weryfikację tego jak w danej chwili twój model się zachowuje jest loss function. 
+
+Creating a loss function and optimizer in PyTorch
+For our model to update its parameters on its own, we'll need to add a few more things to our recipe.
+
+And that's a loss function as well as an optimizer.
+
+The rolls of these are:
+
+Function	What does it do?	Where does it live in PyTorch?	Common values
+Loss function	Measures how wrong your model's predictions (e.g. y_preds) are compared to the truth labels (e.g. y_test). Lower the better.
+PyTorch has plenty of built-in loss functions in torch.nn.
+Mean absolute error (MAE) for regression problems (torch.nn.L1Loss()).
+Binary cross entropy for binary classification problems (torch.nn.BCELoss()).
+Optimizer	Tells your model how to update its internal parameters to best lower the loss.
+You can find various optimization function implementations in torch.optim.
+Stochastic gradient descent (torch.optim.SGD()). Adam optimizer (torch.optim.Adam()).
+Let's create a loss function and an optimizer we can use to help improve our model.
+
+Depending on what kind of problem you're working on will depend on what loss function and what optimizer you use.
+
+However, there are some common values, that are known to work well such as the SGD (stochastic gradient descent) or Adam optimizer.
+And the MAE (mean absolute error) loss function for regression problems (predicting a number) or binary cross entropy loss function for
+classification problems (predicting one thing or another).
+
+For our problem, since we're predicting a number, let's use MAE (which is under torch.nn.L1Loss()) in PyTorch as our loss function.
+"""
+
+# Setup loss function
+loss_fn = nn.L1Loss()
+
+# Setup optimizer (stochastic gradient descent)
+optimizer = torch.optim.SGD(params=model_0.parameters(), lr=0.01)  # lr = learnig rate
+
+
+print(loss_fn)
+print(optimizer)
+
+
+# Building a training loop and testing loop
+# Parę rzeczy potrzebnych do stworzenia tych pętli:
+
+"""
+0. Loop through the data
+1. Forward pass/forward propagation (model prediction)
+2. Calculate the loss (how wrong the model is)
+3. Zero gradients/Optimizer zero grad (clear old gradients)
+4. Backward pass/loss backward (calculate the gradients)
+5. Step the optimizer (update the model parameters)
+6. Testing loop (optional)
 """
