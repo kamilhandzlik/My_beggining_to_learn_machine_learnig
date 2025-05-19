@@ -227,8 +227,8 @@ loss_fn = nn.L1Loss()
 optimizer = torch.optim.SGD(params=model_0.parameters(), lr=0.01)  # lr = learnig rate
 
 
-print(loss_fn)
-print(optimizer)
+# print(loss_fn)
+# print(optimizer)
 
 
 # Building a training loop and testing loop
@@ -239,7 +239,58 @@ print(optimizer)
 1. Forward pass/forward propagation (model prediction)
 2. Calculate the loss (how wrong the model is)
 3. Zero gradients/Optimizer zero grad (clear old gradients)
-4. Backward pass/loss backward (calculate the gradients)
-5. Step the optimizer (update the model parameters)
+4. Backward pass/loss backward (calculate the gradients) (backpropagation)
+5. Step the optimizer (update the model parameters) (gradient descent)
 6. Testing loop (optional)
 """
+
+# An epoch is one loop through the data
+epochs = 100  # number of epochs
+
+
+# def train_step(model: nn.Module, loss_fn: nn.Module, optimizer: torch.optim.Optimizer):
+for epoch in range(epochs):
+    # set model to training mode
+    model_0.train()
+
+    # 1. Forward pass
+    # 1. Forward pass/forward propagation (model prediction)
+    y_preds = model_0(X_train)
+
+    # 2. Obliczenie błędu
+    # 2. Calculate the loss (how wrong the model is)
+    loss = loss_fn(y_preds, y_train)
+
+    # 3. Wyzerowanie gradientów
+    # 3. Zero gradients/Optimizer zero grad (clear old gradients)
+    optimizer.zero_grad()
+
+    # 4. Backpropagation
+    # 4. Backward pass/loss backward (calculate the gradients)
+    loss.backward()
+
+    # 5. Aktualizacja wag
+    # 5. Step the optimizer (update the model parameters) (gradient descent)
+    optimizer.step()
+
+    # model_0.eval()  # wyłącza gradient tracking
+    # Co 10 epok pokaż co się dzieje
+    if epoch % 10 == 0:
+        print(f"Epoch {epoch} | Loss: {loss.item():.4f}")
+
+# print(train_step(model_0, loss_fn, optimizer))  # train the model
+# print(model_0.state_dict())  # print model parameters
+with torch.inference_mode():
+    y_preds_new = model_0(X_test)
+    # print(y_preds_new)
+    print(plot_predictions(predictions=y_preds_new))
+
+
+# Testowanie modelu
+
+with torch.inference_mode():
+    # with torch.no_grad(): # Przyspiesza obliczenia
+    test_pred = model_0(X_test)
+    test_loss = loss_fn(test_pred, y_test)
+
+print(f"Epoch: {epoch} | Test: {loss} | Test loss: {test_loss}")  # print test loss
