@@ -27,6 +27,7 @@ It does not cover:
 import torch
 from torch import nn
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 # Chaking version of pytorch
@@ -245,8 +246,20 @@ optimizer = torch.optim.SGD(params=model_0.parameters(), lr=0.01)  # lr = learni
 """
 
 # An epoch is one loop through the data
-epochs = 100  # number of epochs
+epochs = 200  # number of epochs
 
+epoch_count = []
+loss_values = []
+test_loss_values = []
+
+# Testowanie modelu
+
+with torch.inference_mode():
+    # with torch.no_grad(): # Przyspiesza obliczenia
+    test_pred = model_0(X_test)
+    y_preds_new = model_0(X_test)
+    # print(y_preds_new)
+    # print(plot_predictions(predictions=y_preds_new))
 
 # def train_step(model: nn.Module, loss_fn: nn.Module, optimizer: torch.optim.Optimizer):
 for epoch in range(epochs):
@@ -273,24 +286,44 @@ for epoch in range(epochs):
     # 5. Step the optimizer (update the model parameters) (gradient descent)
     optimizer.step()
 
-    # model_0.eval()  # wyłącza gradient tracking
     # Co 10 epok pokaż co się dzieje
     if epoch % 10 == 0:
-        print(f"Epoch {epoch} | Loss: {loss.item():.4f}")
+        # Oblicz test loss na aktualnych wagach modelu
+        model_0.eval()
+        with torch.inference_mode():
+            test_pred = model_0(X_test)
+            test_loss = loss_fn(test_pred, y_test)
+        epoch_count.append(epoch)
+        loss_values.append(loss.detach().numpy())
+        test_loss_values.append(test_loss.detach().numpy())
+        print(
+            f"Epoch {epoch} | Loss: {loss.item():.4f} | Test loss: {test_loss.item():.4f}"
+        )
 
 # print(train_step(model_0, loss_fn, optimizer))  # train the model
 # print(model_0.state_dict())  # print model parameters
-with torch.inference_mode():
-    y_preds_new = model_0(X_test)
-    # print(y_preds_new)
-    print(plot_predictions(predictions=y_preds_new))
 
 
-# Testowanie modelu
+# with torch.inference_mode():
+#     # with torch.no_grad(): # Przyspiesza obliczenia
+#     test_pred = model_0(X_test)
+#     test_loss = loss_fn(test_pred, y_test)
 
-with torch.inference_mode():
-    # with torch.no_grad(): # Przyspiesza obliczenia
-    test_pred = model_0(X_test)
-    test_loss = loss_fn(test_pred, y_test)
-
+plt.plot(epoch_count, loss_values, label="Train loss")
+plt.plot(epoch_count, test_loss_values, label="Test loss")
+plt.title("Training and test loss curves")
+plt.ylabel("Loss")
+plt.xlabel("Epochs")
+plt.legend()
+plt.show()
 print(f"Epoch: {epoch} | Test: {loss} | Test loss: {test_loss}")  # print test loss
+
+
+# Saving model in pytorch
+"""
+torch.save(model_0.state_dict(), "model_0.pth")  # save model parameters
+torch.save(model_0, "model_0.pth")  # save model
+tprch.load("model_0.pth")  # load model
+model_0.load_state_dict(torch.load("model_0.pth"))  # load model parameters
+torch.nn.Module.load_state_dict(torch.load("model_0.pth"))  # this allows to load a model's saved dictionary
+"""
