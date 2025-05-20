@@ -5,6 +5,8 @@ import torch.nn as nn
 import numpy as np
 import matplotlib.pyplot as plt
 
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"Using {device} device")
 
 # Wspóczynniki
 weight = 0.75
