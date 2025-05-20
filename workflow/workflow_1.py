@@ -327,3 +327,33 @@ tprch.load("model_0.pth")  # load model
 model_0.load_state_dict(torch.load("model_0.pth"))  # load model parameters
 torch.nn.Module.load_state_dict(torch.load("model_0.pth"))  # this allows to load a model's saved dictionary
 """
+
+from pathlib import Path
+
+# 1. Create models directory
+MODEL_PATH = Path("models")
+MODEL_PATH.mkdir(parents=True, exist_ok=True)
+
+# 2. Create model save path
+MODEL_NAME = "model_0.pth"
+MODEL_SAVE_PATH = MODEL_PATH / MODEL_NAME
+
+# 3. Save the model
+print(f"Saving model to: {MODEL_SAVE_PATH}")
+torch.save(model_0.state_dict(), MODEL_SAVE_PATH)
+
+
+# 4. Load the model
+#  To load first we need to make new instance of the model
+loaded_model_0 = LiniearRegressionModel()
+
+# 5. Load the state_dict of model_0
+loaded_model_0.load_state_dict(torch.load(MODEL_SAVE_PATH))
+
+
+# Evaluate loaded model
+loaded_model_0.eval()
+with torch.inference_mode():
+    y_preds = model_0(X_test)
+    loaded_model_1_preds = loaded_model_0(X_test)
+print(torch.allclose(y_preds, loaded_model_1_preds))
