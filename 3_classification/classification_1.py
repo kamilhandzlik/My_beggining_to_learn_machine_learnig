@@ -14,6 +14,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import requests
 from pathlib import Path
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from helper_function import plot_predictions, plot_decision_boundary
 
 
 # 1. Make classification data and get it ready
@@ -174,10 +178,10 @@ y_test = y_test.to(device)
 
 ## View the frist 5 outputs of the forward pass on the test data
 y_logits = model_0(X_test.to(device))[:5]
-print(y_logits)
+# print(y_logits)
 ## Use sigmoid on model logits
 y_pred_probs = torch.sigmoid(y_logits)
-print(y_pred_probs)
+# print(y_pred_probs)
 ## Find the predicted labels (round the prediction probabilities)
 y_preds = torch.round(y_pred_probs)
 
@@ -185,7 +189,7 @@ y_preds = torch.round(y_pred_probs)
 y_pred_labels = torch.round(torch.sigmoid(model_0(X_test.to(device))[:5]))
 
 ## Check for equality
-print(torch.eq(y_preds.squeeze(), y_pred_labels.squeeze()))
+# print(torch.eq(y_preds.squeeze(), y_pred_labels.squeeze()))
 
 ## Get rid of extra dimension
 y_preds.squeeze()
@@ -225,3 +229,52 @@ for epoch in range(epochs):
         print(
             f"Epoch: {epoch} | Loss: {loss:.5f}, Accuracy: {acc:.2f}% | Test loss: {test_loss:.5f}, Test acc: {test_acc:.2f}%"
         )
+
+# This model does not seem to learn. Let's evaluate it
+if Path("helper_function.py").is_file():
+    print("halper_function.py already exists, skipping download")
+else:
+    print("Donloading helper_function.py")
+    requests = requests.get("https://github.com/mrdbourke/pytorch-deep-learning/blob/main/helper_functions.py")
+    with open("helper_function.py", 'wb') as f:
+        f.write(requests.content)
+
+
+# Plot decision boundary of the model
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+plt.title("Train")
+plot_decision_boundary(model_0, X_train, y_train)
+plt.subplot(1, 2, 1)
+plt.title("Test")
+plot_decision_boundary(model_0, X_test, y_test)
+plt.show()
+
+# 5. Improving a model (from a model perspective)
+# Let's try to fix our model's underfitting problem.
+"""
+* Add more layers	Each layer potentially increases the learning capabilities of the model with each layer being able to learn some kind of new
+  pattern in the data. More layers are often referred to as making your neural network deeper.
+* Add more hidden units	Similar to the above, more hidden units per layer means a potential increase in learning capabilities of the model.
+* More hidden units are often referred to as making your neural network wider.
+* Fitting for longer (more epochs)	Your model might learn more if it had more opportunities to look at the data.
+* Changing the activation functions	Some data just can't be fit with only straight lines (like what we've seen), using non-linear activation
+  functions can help with this (hint, hint).
+* Change the learning rate	Less model specific, but still related, the learning rate of the optimizer decides how much a model should change
+  its parameters each step, too much and the model overcorrects, too little and it doesn't learn enough.
+* Change the loss function	Again, less model specific but still important, different problems require different loss functions. For example,
+  a binary cross entropy loss function won't work with a multi-class classification problem.
+* Use transfer learning	Take a pretrained model from a problem domain similar to yours and adjust it to your own problem. We cover transfer
+  learning in notebook 06.
+
+
+  because you can adjust all of these by hand, they're referred to as hyperparameters.
+
+Let;s imporeve model by:
+* Adding more hidden layers
+* Increase the numer of layers: 2 -> 3
+* Increas the number of epochs 100 -> 1000 
+
+  but this willl b in classification_2 to not make too much of a mess here in the code
+"""
+
