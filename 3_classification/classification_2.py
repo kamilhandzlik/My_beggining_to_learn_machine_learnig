@@ -258,3 +258,8 @@ plot_predictions(
     test_labels=y_test_regressio.cpu().numpy(),
     predictions=y_preds.cpu().numpy(),
 )
+
+
+##################################################
+############## Non linearity  ####################
+##################################################
