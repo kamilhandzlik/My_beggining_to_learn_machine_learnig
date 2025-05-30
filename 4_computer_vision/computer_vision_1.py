@@ -95,6 +95,11 @@ import torchvision
 from torchvision import datasets
 from torchvision.transforms import ToTensor
 import matplotlib.pyplot as plt
+import os
+import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from helper_function import accuracy_fn
 
 # 1. Przygotowanie danych
 # Dataset, którego użyje to FashionMNIST - ekwiwalent do Hello World! XD
@@ -116,6 +121,7 @@ test_data = datasets.FashionMNIST(
 )
 
 RANDOM_SEED = 42
+# device = "cuda" if torch.cuda.is_available() else "cpu"
 # Sprawdzenie czy jest podział
 print(f"len Train data: {len(train_data)}, len test data: {len(test_data)}")
 
@@ -218,3 +224,112 @@ print(train_features_batch.shape, train_labels_batch.shape)
 # plt.show()
 # print(f"Image size: {img.shape}")
 # print(f"Label: {label}, label size: {label.shape}")
+
+
+# 3. Budowanie modelu
+# flatten layer
+flatten_model = nn.Flatten()
+
+# Get a single sample
+x = train_features_batch[0]
+
+# Flatten the sample
+output = flatten_model(x)
+
+# Print out what happend
+# print(f"Shape before flatteining: {x.shape}")
+# print(f"Shpae after flattening; {output.shape}")
+
+
+# Model
+class FashionMNISTModelV0(nn.Module):
+    def __init__(self, input_shape: int, hidden_units: int, output_shape: int):
+        super().__init__()
+        self.layer_stack = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=input_shape, out_features=hidden_units),
+            nn.Linear(in_features=hidden_units, out_features=output_shape),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.layer_stack(x)
+
+
+torch.manual_seed(RANDOM_SEED)
+model_0 = FashionMNISTModelV0(input_shape=784, hidden_units=10, output_shape=10).to(
+    "cpu"
+)
+
+
+# 4. Testing loop
+epochs = 3
+
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(params=model_0.parameters(), lr=0.1)
+
+# Creating to time our experiments
+from timeit import default_timer
+
+
+def print_train_time(start: float, end: float, device: torch.device = None):
+    total_time = end - start
+    print(f"Train time on {device}: {total_time:.3f} seconds")
+    return total_time
+
+
+start_time = default_timer()
+end_time = default_timer()
+print(print_train_time(start=start_time, end=end_time, device="cpu"))
+
+
+from tqdm.auto import tqdm
+
+torch.manual_seed(RANDOM_SEED)
+train_time_star_on_cpu = default_timer()
+
+# Training and testing loops
+for epoch in tqdm(range(epochs)):
+    print(f"Epoch: {epoch}\n------------")
+    train_loss = 0
+    # Trainig loop
+    for batch, (X, y) in enumerate(train_dataloader):
+        model_0.train()
+        # 1. Forward pass
+        y_pred = model_0(X)
+        # 2. Calculate the loss
+        loss = loss_fn(y_pred, y)
+        train_loss += loss
+        # 3. optimizer zero grad
+        optimizer.zero_grad()
+        # 4. Backward propagation
+        loss.backward()
+        # 5. Optimizer step
+        optimizer.step()
+
+        if batch % 400 == 0:
+            print(f"Looked at {batch * len(X)}/{len(train_dataloader.dataset)} samples")
+
+    # Divide total train loss by length of train dataloader (average loss per batch per epoch)
+    train_loss /= len(train_dataloader)
+
+    # Testing loop
+    # Setup variables for accumulatively adding up loss and accuracy
+    test_loss, test_acc = 0, 0
+    model_0.eval()
+    with torch.inference_mode():
+        for X, y in test_dataloader:
+            test_pred = model_0(X)
+            test_loss += loss_fn(test_pred, y).item()
+            test_acc += accuracy_fn(y_true=y, y_pred=test_pred.argmax(dim=1))
+        test_loss /= len(test_dataloader)
+        test_acc /= len(test_dataloader)
+    print(
+        f"\nTrain loss: {train_loss:.5f} | Test loss: {test_loss:.2f}, Test acc: {test_acc:.2f}%\n"
+    )
+
+train_time_end_on_cpu = default_timer()
+total_train_time_model_0 = print_train_time(
+    start=train_time_star_on_cpu,
+    end=train_time_end_on_cpu,
+    device=str(next(model_0.parameters()).device),
+)
