@@ -15,4 +15,7 @@ install numpy and pandas
 ```bash
 pip install numpy
 pip install pandas
+pip install matplotlib
+pip install tqdm
 ```
+

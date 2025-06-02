@@ -205,10 +205,10 @@ for epoch in tqdm(range(epochs)):
     )
 
 
-train_time_end_on_cpu = default_timer()
+train_time_end_on_gpu = default_timer()
 total_train_time_model_0 = print_train_time(
     start=train_time_star_on_cpu,
-    end=train_time_end_on_cpu,
+    end=train_time_end_on_gpu,
     device=str(next(model_1.parameters()).device),
 )
 
@@ -244,3 +244,23 @@ model_1_results = eval_model(
     model=model_1, data_loader=test_dataloader, loss_fn=loss_fn, accuracy_fn=accuracy_fn
 )
 print(model_1_results)
+
+#######################################
+###########  Ważne!!!! ################
+#######################################
+
+"""
+Note: The training time on CUDA vs CPU will depend largely on the quality of the CPU/GPU you're using. Read on for a more explained answer.
+
+Question: "I used a GPU but my model didn't train faster, why might that be?"
+
+Answer: Well, one reason could be because your dataset and model are both so small (like the dataset and model we're working with) the benefits of using a GPU are outweighed by the time it actually takes to transfer the data there.
+
+There's a small bottleneck between copying data from the CPU memory (default) to the GPU memory.
+
+So for smaller models and datasets, the CPU might actually be the optimal place to compute on.
+
+But for larger datasets and models, the speed of computing the GPU can offer usually far outweighs the cost of getting the data there.
+
+However, this is largely dependent on the hardware you're using. With practice, you will get used to where the best place to train your models is.
+"""
