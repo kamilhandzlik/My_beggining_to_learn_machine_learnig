@@ -127,7 +127,7 @@ train_time_star_on_cpu = default_timer()
 def train_step(
     model: torch.nn.Module,
     data_loader: torch.utils.data.DataLoader,
-    loss_fn: torch.optim.Optimizer,
+    loss_fn: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     accuracy_fn,
     device: torch.device = device,
