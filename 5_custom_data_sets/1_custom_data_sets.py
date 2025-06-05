@@ -221,5 +221,224 @@ test_data = datasets.ImageFolder(root=test_dir, transform=data_transform)
 print(f"Train data:\n{train_data}\nTest data:\n{test_data}")
 
 
-# Get class names as dict
+# Get class names as list
 class_names = train_data.classes
+# Same but turning names into dict
+class_dict = train_data.class_to_idx
+# Check the lengths
+print(f"Train data: {len(train_data)} | Tet data: {len(test_data)}")
+
+img, label = train_data[0][0], train_data[0][1]
+print(f"Image tensor:\n{img}")
+print(f"Image shpae: {img.shape}")
+print(f"Image datatype: {img.dtype}")
+print(f"Image label: {label}")
+print(f"Label datatype: {type(label)}")
+
+img_permute = img.permute(1, 2, 0)
+
+# Print out different shapes (before and after permute)
+print(f"Original shape: {img.shape} -> [color_channels, height, width]")
+print(f"Image permute shape: {img_permute.shape} -> [height, width, color_channels]")
+
+# Plot image
+# plt.figure(figsize=(10, 7))
+# plt.imshow(img.permute(1, 2, 0))
+# plt.axis("off")
+# plt.title(class_names[label], fontsize=14)
+# plt.show()
+
+
+# 4.1 Turn loaded images into DataLoader's
+BATCH_SIZE = 32
+train_dataloader = DataLoader(
+    dataset=train_data, batch_size=BATCH_SIZE, num_workers=0, shuffle=True
+)
+test_dataloader = DataLoader(
+    dataset=test_data, batch_size=BATCH_SIZE, num_workers=0, shuffle=True
+)
+
+print(
+    f"Train data loader:\n{train_dataloader}\n-------------------\nTest data loader:\n{test_dataloader}"
+)
+print(
+    f"lenght of train data loader: {len(train_dataloader)} | Lenght of test dataloader {len(test_dataloader)}"
+)
+# Batch size will now be 1, try changing the batch_size parameter above and see what happens
+img, label = next(iter(train_dataloader))
+print(f"Image shape: {img.shape} -> [batch_size, color_channels, height, width]")
+print(f"Label shape: {label.shape}")
+
+
+#  Option 2: Loading Image Data with a Custom Dataset
+# ------------------------------------------------------
+import os
+import pathlib
+import torch
+
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+from typing import Tuple, Dict, List
+
+# Instance of torchvision.datasets.ImageFolder()
+train_data.classes, train_data.class_to_idx
+
+# Setup path for target directory
+target_directory = train_dir
+print(f"Target directory: {target_directory}")
+
+# Get the class names from the target directory
+class_names_found = sorted(
+    [entry.name for entry in list(os.scandir(image_path / "train"))]
+)
+print(f"Class names found: {class_names_found}")
+
+
+# Make function to find classes in target directory
+def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
+    """Finds the class folder names in a target directory.
+
+    Assumes target directory is in standard image classification format.
+
+    Args:
+        directory (str): target directory to load classnames from.
+
+    Returns:
+        Tuple[List[str], Dict[str, int]]: (list_of_class_names, dict(class_name: idx...))
+
+    Example:
+        find_classes("food_images/train")
+        >>> (["class_1", "class_2"], {"class_1": 0, ...})
+    """
+    # 1. Get the class names by scanning the target directory
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+
+    # 2. Raise an error if class names not found
+    if not classes:
+        raise FileNotFoundError(f"Couldn't find any classes in {directory}.")
+
+    # 3. Create a dictionary of index labels (computers prefer numerical rather than string labels)
+    class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+    return classes, class_to_idx
+
+
+# print(find_classes(train_dir))
+
+# 5.2 Create a custom Dataset to replicate ImageFolder
+# Write a custom dataset class (inherits from torch.utils.data.Dataset)
+
+
+class ImageFolderCustom(Dataset):
+    def __init__(self, targ_dir: str, transform=None) -> None:
+        # 3. Create class attributes
+        # Get all image paths
+        self.paths = list(pathlib.Path(targ_dir).glob("*/*,jpg"))
+        # Setup transforms
+        self.transform = transform
+        # Create classes and class_to_idx attributes
+        self.classess, self.class_to_idx = find_classes(targ_dir)
+
+    def load_image(self, index: int) -> Image.Image:
+        "Opens an image via a path and returns it."
+        image_path = self.paths[index]
+        return Image.open(image_path)
+
+    def __len__(self) -> int:
+        "Returns the total number os samples."
+        return len(self.paths)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+        "Returns one sample of data, data and label (X, y)."
+        img = self.load_image(index)
+        class_name = self.paths[index].parent.name
+        class_idx = self.class_to_idx[class_name]
+
+        if self.transform:
+            return self.transform(img), class_idx
+        else:
+            return img, class_idx
+
+
+# Augment train data
+train_transforms = transforms.Compose(
+    [
+        transforms.Resize((64, 64)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ToTensor(),
+    ]
+)
+
+# Don't augment test data, only reshape
+test_transforms = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor])
+
+
+train_data_custom = ImageFolderCustom(targ_dir=train_dir, transform=train_transforms)
+
+test_data_custom = ImageFolderCustom(targ_dir=test_dir, transform=test_transforms)
+
+# print(train_data_custom, test_data_custom)
+
+# len(train_data_custom), len(test_data_custom)
+
+# print(train_data_custom.classes)
+
+# print(train_data_custom.class_to_idx)
+
+# Check for equality amongst our custom Dataset and ImageFolder Dataset
+# print(
+# (len(train_data_custom) == len(train_data))
+# & (len(test_data_custom) == len(test_data))
+# )
+# print(train_data_custom.classes == train_data.classes)
+# print(train_data_custom.class_to_idx == train_data.class_to_idx)
+
+
+# 5.3 Create a function to display random images
+# 1. Take in a Dataset as well as a list of class names
+def display_random_images(
+    dataset: torch.utils.data.dataset.Dataset,
+    classes: List[str] = None,
+    n: int = 10,
+    display_shape: bool = True,
+    seed: int = None,
+):
+
+    # 2. Adjust display if n too high
+    if n > 10:
+        n = 10
+        display_shape = False
+        print(
+            f"For display purposes, n shouldn't be larger than 10, setting to 10 and removing shape display."
+        )
+
+    # 3. Set random seed
+    if seed:
+        random.seed(seed)
+
+    # 4. Get random sample indexes
+    random_samples_idx = random.sample(range(len(dataset)), k=n)
+
+    # 5. Setup plot
+    plt.figure(figsize=(16, 8))
+
+    # 6. Loop through samples and display random samples
+    for i, targ_sample in enumerate(random_samples_idx):
+        targ_image, targ_label = dataset[targ_sample][0], dataset[targ_sample][1]
+
+        # 7. Adjust image tensor shape for plotting: [color_channels, height, width] -> [color_channels, height, width]
+        targ_image_adjust = targ_image.permute(1, 2, 0)
+
+        # Plot adjusted samples
+        plt.subplot(1, n, i + 1)
+        plt.imshow(targ_image_adjust)
+        plt.axis("off")
+        if classes:
+            title = f"class: {classes[targ_label]}"
+            if display_shape:
+                title = title + f"\nshape: {targ_image_adjust.shape}"
+        plt.title(title)
+    plt.show()
+
+
+display_random_images(train_data, n=5, classes=class_names, seed=None)
