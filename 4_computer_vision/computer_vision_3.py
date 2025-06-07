@@ -400,13 +400,14 @@ loaded_model_2.load_state_dict(torch.load(f=MODEL_SAVE_PATH))
 loaded_model_2 = loaded_model_2.to(device)
 
 # Evaluate loaded model
-torch.manual_seed(42)
-
-loaded_model_2_results = eval_model(
-    model=loaded_model_2,
-    data_loader=test_dataloader,
-    loss_fn=loss_fn,
-    accuracy_fn=accuracy_fn,
-)
-
-loaded_model_2_results
+# torch.manual_seed(42)
+#
+# loaded_model_2_results = eval_model(
+# model=loaded_model_2,
+# data_loader=test_dataloader,
+# loss_fn=loss_fn,
+# accuracy_fn=accuracy_fn,
+# )
+#
+# loaded_model_2_results
+#

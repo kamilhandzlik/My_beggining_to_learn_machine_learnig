@@ -42,6 +42,7 @@ Topic	Contents
 # 0. Importing PyTorch and setting up device-agnostic code	Let's get PyTorch loaded and then follow best practice to setup our code to be device-agnostic.
 import torch
 from torch import nn
+import torch.utils.data.dataset
 
 device = "cuda" if torch.cuda.is_available else "cpu"
 print(f"project is on {device} device")
@@ -333,7 +334,7 @@ class ImageFolderCustom(Dataset):
     def __init__(self, targ_dir: str, transform=None) -> None:
         # 3. Create class attributes
         # Get all image paths
-        self.paths = list(pathlib.Path(targ_dir).glob("*/*,jpg"))
+        self.paths = list(pathlib.Path(targ_dir).glob("*/*.jpg"))
         # Setup transforms
         self.transform = transform
         # Create classes and class_to_idx attributes
@@ -370,7 +371,9 @@ train_transforms = transforms.Compose(
 )
 
 # Don't augment test data, only reshape
-test_transforms = transforms.Compose([transforms.Resize((64, 64)), transforms.ToTensor])
+test_transforms = transforms.Compose(
+    [transforms.Resize((64, 64)), transforms.ToTensor()]
+)
 
 
 train_data_custom = ImageFolderCustom(targ_dir=train_dir, transform=train_transforms)
@@ -441,4 +444,424 @@ def display_random_images(
     plt.show()
 
 
-display_random_images(train_data, n=5, classes=class_names, seed=None)
+# Turn train and test custom Dataset's into DataLoader's
+from torch.utils.data import DataLoader
+
+train_dataloader_custom = DataLoader(
+    dataset=train_data_custom,  # use custom created train Dataset
+    batch_size=1,  # how many samples per batch?
+    num_workers=0,  # how many subprocesses to use for data loading? (higher = more)
+    shuffle=True,
+)  # shuffle the data?
+
+test_dataloader_custom = DataLoader(
+    dataset=test_data_custom,  # use custom created test Dataset
+    batch_size=1,
+    num_workers=0,
+    shuffle=False,
+)  # don't usually need to shuffle testing data
+
+train_dataloader_custom, test_dataloader_custom
+
+# Get image and label from custom DataLoader
+img_custom, label_custom = next(iter(train_dataloader_custom))
+
+# Batch size will now be 1, try changing the batch_size parameter above and see what happens
+print(f"Image shape: {img_custom.shape} -> [batch_size, color_channels, height, width]")
+print(f"Label shape: {label_custom.shape}")
+
+# 6. Other forms of transforms (data augmentation)
+train_transforms = transforms.Compose(
+    [transforms.Resize((224, 224)), transforms.ToTensor()]
+)
+test_transforms = transforms.Compose(
+    [transforms.Resize((224, 224)), transforms.ToTensor()]
+)
+
+# Get all image paths
+image_path_list = list(image_path.glob("*/*/*.jpg"))
+
+# Plot random images
+# plot_transformed_images(
+# image_paths=image_path_list,
+# transform=train_transforms,
+# n=3,
+# seed=None,
+# )
+# 7. Model 0: TinyVGG without data augmentation
+"""
+Alright, we've seen how to turn our data from images in folders to transformed tensors.
+
+Now let's construct a computer vision model to see if we can classify if an image is of pizza, steak or sushi.
+
+To begin, we'll start with a simple transform, only resizing the images to (64, 64) and turning them into tensors.
+"""
+# 7.1 Creating transforms and loading data for Model 0
+# Create simple transforms
+simple_transform = transforms.Compose(
+    [
+        transforms.Resize((64, 64)),
+        transforms.ToTensor(),
+    ]
+)
+
+# 1. Load and transform data
+train_data_simple = datasets.ImageFolder(root=train_dir, transform=simple_transform)
+test_data_simple = datasets.ImageFolder(root=test_dir, transform=simple_transform)
+
+# 2. Turn data into Dataloaders
+# Setup batch size and number of workers
+BATCH_SIZE = 32
+NUM_WORKERS = 0
+print(f"Creating DataLoader's with batch size {BATCH_SIZE} and {NUM_WORKERS} workers.")
+
+
+# Create DataLoader's
+train_dataloader_simple = DataLoader(
+    train_data_simple,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    num_workers=NUM_WORKERS,
+)
+test_dataloader_simple = DataLoader(
+    test_data_simple,
+    batch_size=BATCH_SIZE,
+    shuffle=True,
+    num_workers=NUM_WORKERS,
+)
+
+print(
+    f"train_dataloader_simple: {train_dataloader_simple} | test_dataloader_simple: {test_dataloader_simple}"
+)
+
+
+# 7.2 Create TinyVGG model class
+class TinyVGG(nn.Module):
+    def __init__(self, input_shape: int, hidden_units: int, output_shape: int) -> None:
+        super().__init__()
+        self.conv_block_1 = nn.Sequential(
+            nn.Conv2d(
+                in_channels=input_shape,
+                out_channels=hidden_units,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+            nn.ReLU(),
+            nn.Conv2d(
+                in_channels=hidden_units,
+                out_channels=hidden_units,
+                kernel_size=3,
+                stride=1,
+                padding=1,
+            ),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        self.conv_block_2 = nn.Sequential(
+            nn.Conv2d(hidden_units, hidden_units, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(hidden_units, hidden_units, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2),
+        )
+
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=hidden_units * 16 * 16, out_features=output_shape),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv_block_1(x)
+        x = self.conv_block_2(x)
+        x = self.classifier(x)
+        return x
+
+
+torch.manual_seed(42)
+model_0 = TinyVGG(
+    input_shape=3, hidden_units=10, output_shape=len(train_data.classes)
+).to(device)
+
+
+# 7.3 Try a forward pass on a single image (to test the model)
+# 1. Get a batch of images and labels from the DataLoader
+img_batch, label_batch = next(iter(train_dataloader_simple))
+
+# 2. Get a single image from the batch and unsqueeze the image so its shape fits the model
+img_single, label_single = img_batch[0].unsqueeze(dim=0), label_batch[0]
+print(f"Single image shape: {img_single.shape}\n")
+
+# 3. Perform a forward pass on a single image
+model_0.eval()
+with torch.inference_mode():
+    pred = model_0(img_single.to(device))
+
+# 4. Print out what's happening and convert model logits -> pred probs -> pred label
+print(f"Output logits:\n{pred}\n")
+print(f"Output prediction probabilities:\n{torch.softmax(pred, dim=1)}\n")
+print(f"Output prediction label:\n{torch.argmax(torch.softmax(pred, dim=1), dim=1)}\n")
+print(f"Actual label:\n{label_single}")
+
+
+# 7.4 Use torchinfo to get an idea of the shapes going through our model
+from torchinfo import summary
+
+summary(model_0, input_size=[1, 3, 64, 64])
+
+
+# 7.5 Create train & test loop functions
+def train_step(
+    model: torch.nn.Module,
+    dataloader: torch.utils.data.DataLoader,
+    loss_fn: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+):
+    model.train()
+    train_loss, train_acc = 0, 0
+    for batch, (X, y) in enumerate(dataloader):
+        X, y = X.to(device), y.to(device)
+        # 1. Forward pass
+        y_pred = model(X)
+        # 2. Calculate the loss
+        loss = loss_fn(y_pred, y)
+        train_loss += loss.item()
+        # 3. Optimizer zero grad
+        optimizer.zero_grad()
+        # 4. loss backward
+        loss.backward()
+        # 5. Optimizer step
+        optimizer.step()
+
+        y_pred_class = torch.argmax(torch.softmax(y_pred, dim=1), dim=1)
+        train_acc += (y_pred_class == y).sum().item() / len(y_pred)
+
+    train_loss /= len(dataloader)
+    train_acc /= len(dataloader)
+    return train_loss, train_acc
+
+
+def test_step(
+    model: torch.nn.Module,
+    dataloder: torch.utils.data.DataLoader,
+    loss_fn: torch.nn.Module,
+):
+    model.eval()
+    test_loss, test_acc = 0, 0
+
+    with torch.inference_mode():
+        for batch, (X, y) in enumerate(dataloder):
+            X, y = X.to(device), y.to(device)
+
+            # 1. Forward pass
+            test_pred_logits = model(X)
+
+            # 2. Calcualte the loss
+            loss = loss_fn(test_pred_logits, y)
+            test_loss += loss.item()
+
+            # Calculate and accumulate accuracy
+            test_pred_labels = test_pred_logits.argmax(dim=1)
+            test_acc += (test_pred_labels == y).sum().item() / len(test_pred_labels)
+
+    test_loss /= len(dataloder)
+    test_acc /= len(dataloder)
+    return test_loss, test_acc
+
+
+# 7.6 Creating a train() function to combine train_step() and test_step()
+from tqdm import tqdm
+
+
+def train(
+    model: torch.nn.Module,
+    train_dataloader: torch.utils.data.DataLoader,
+    test_dataloader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    loss_fn: torch.nn.Module,
+    epochs: int = 5,
+):
+    # 2. Create empty results dictionary
+    results = {"train_loss": [], "train_acc": [], "test_loss": [], "test_acc": []}
+
+    # 3. Loop through training and testing steps for a number of epochs
+    for epoch in tqdm(range(epochs)):
+        train_loss, train_acc = train_step(
+            model=model,
+            dataloader=train_dataloader,
+            loss_fn=loss_fn,
+            optimizer=optimizer,
+        )
+        test_loss, test_acc = test_step(
+            model=model,
+            dataloder=test_dataloader,
+            loss_fn=loss_fn,
+        )
+        # 4. Print out what's happening
+        print(
+            f"Epoch: {epoch+1} | "
+            f"train_loss: {train_loss:.4f} | "
+            f"train_acc: {train_acc:.4f} | "
+            f"test_loss: {test_loss:.4f} | "
+            f"test_acc: {test_acc:.4f}"
+        )
+        # 5. Update results dictionary
+        # Ensure all data is moved to CPU and converted to float for storage
+        results["train_loss"].append(
+            train_loss.item() if isinstance(train_loss, torch.Tensor) else train_loss
+        )
+        results["train_acc"].append(
+            train_acc.item() if isinstance(train_acc, torch.Tensor) else train_acc
+        )
+        results["test_loss"].append(
+            test_loss.item() if isinstance(test_loss, torch.Tensor) else test_loss
+        )
+        results["test_acc"].append(
+            test_acc.item() if isinstance(test_acc, torch.Tensor) else test_acc
+        )
+
+    return results
+
+
+# 7.7 Train and Evaluate Model 0
+
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
+
+NUM_EPOCHS = 5
+
+model_0 = TinyVGG(
+    input_shape=3, hidden_units=10, output_shape=len(train_data.classes)
+).to(device)
+
+
+loss_fn = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(params=model_0.parameters(), lr=0.01)
+
+# Start the timer
+from timeit import default_timer as timer
+
+start_time = timer()
+
+# Train model_0
+model_0_results = train(
+    model=model_0,
+    train_dataloader=train_dataloader_simple,
+    test_dataloader=test_dataloader_simple,
+    optimizer=optimizer,
+    loss_fn=loss_fn,
+    epochs=NUM_EPOCHS,
+)
+
+# End the timer and print out how long it took
+end_time = timer()
+print(f"Total training time: {end_time-start_time:.3f} seconds")
+
+
+# 7.8 Plot the loss curves of Model 0
+# Check the model_0_results keys
+model_0_results.keys()
+
+
+def plot_loss_curves(results: Dict[str, List[float]]):
+    """Plots training curves of a results dictionary.
+
+    Args:
+        results (dict): dictionary containing list of values, e.g.
+            {"train_loss": [...],
+             "train_acc": [...],
+             "test_loss": [...],
+             "test_acc": [...]}
+    """
+
+    # Get the loss values of the results dictionary (training and test)
+    loss = results["train_loss"]
+    test_loss = results["test_loss"]
+
+    # Get the accuracy values of the results dictionary (training and test)
+    accuracy = results["train_acc"]
+    test_accuracy = results["test_acc"]
+
+    # Figure out how many epochs there were
+    epochs = range(len(results["train_loss"]))
+
+    # Setup a plot
+    plt.figure(figsize=(15, 7))
+
+    # Plot loss
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, loss, label="train_loss")
+    plt.plot(epochs, test_loss, label="test_loss")
+    plt.title("Loss")
+    plt.xlabel("Epochs")
+    plt.legend()
+
+    # Plot accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, accuracy, label="train_accuracy")
+    plt.plot(epochs, test_accuracy, label="test_accuracy")
+    plt.title("Accuracy")
+    plt.xlabel("Epochs")
+    plt.legend()
+    plt.show()
+
+
+plot_loss_curves(model_0_results)
+
+"""
+8.1 How to deal with overfitting
+Since the main problem with overfitting is that your model is fitting the training data too well, you'll want to use techniques to "reign it in".
+
+A common technique of preventing overfitting is known as regularization.
+
+I like to think of this as "making our models more regular", as in, capable of fitting more kinds of data.
+
+Let's discuss a few methods to prevent overfitting.
+
+Method to prevent overfitting	What is it?
+Get more data	Having more data gives the model more opportunities to learn patterns, patterns which may be more generalizable to new examples.
+Simplify your model	If the current model is already overfitting the training data, it may be too complicated of a model. This means it's learning the patterns of the data too well and isn't able to generalize well to unseen data. One way to simplify a model is to reduce the number of layers it uses or to reduce the number of hidden units in each layer.
+Use data augmentation	Data augmentation manipulates the training data in a way so that's harder for the model to learn as it artificially adds more variety to the data. If a model is able to learn patterns in augmented data, the model may be able to generalize better to unseen data.
+Use transfer learning	Transfer learning involves leveraging the patterns (also called pretrained weights) one model has learned to use as the foundation for your own task. In our case, we could use one computer vision model pretrained on a large variety of images and then tweak it slightly to be more specialized for food images.
+Use dropout layers	Dropout layers randomly remove connections between hidden layers in neural networks, effectively simplifying a model but also making the remaining connections better. See torch.nn.Dropout() for more.
+Use learning rate decay	The idea here is to slowly decrease the learning rate as a model trains. This is akin to reaching for a coin at the back of a couch. The closer you get, the smaller your steps. The same with the learning rate, the closer you get to convergence, the smaller you'll want your weight updates to be.
+Use early stopping	Early stopping stops model training before it begins to overfit. As in, say the model's loss has stopped decreasing for the past 10 epochs (this number is arbitrary), you may want to stop the model training here and go with the model weights that had the lowest loss (10 epochs prior).
+There are more methods for dealing with overfitting but these are some of the main ones.
+
+As you start to build more and more deep models, you'll find because deep learnings are so good at learning patterns in data, dealing with overfitting is one of the primary problems of deep learning.
+
+8.2 How to deal with underfitting
+When a model is underfitting it is considered to have poor predictive power on the training and test sets.
+
+In essence, an underfitting model will fail to reduce the loss values to a desired level.
+
+Right now, looking at our current loss curves, I'd considered our TinyVGG model, model_0, to be underfitting the data.
+
+The main idea behind dealing with underfitting is to increase your model's predictive power.
+
+There are several ways to do this.
+
+Method to prevent underfitting	What is it?
+Add more layers/units to your model	If your model is underfitting, it may not have enough capability to learn the required patterns/weights/representations of the data to be predictive. One way to add more predictive power to your model is to increase the number of hidden layers/units within those layers.
+Tweak the learning rate	Perhaps your model's learning rate is too high to begin with. And it's trying to update its weights each epoch too much, in turn not learning anything. In this case, you might lower the learning rate and see what happens.
+Use transfer learning	Transfer learning is capable of preventing overfitting and underfitting. It involves using the patterns from a previously working model and adjusting them to your own problem.
+Train for longer	Sometimes a model just needs more time to learn representations of data. If you find in your smaller experiments your model isn't learning anything, perhaps leaving it train for a more epochs may result in better performance.
+Use less regularization	Perhaps your model is underfitting because you're trying to prevent overfitting too much. Holding back on regularization techniques can help your model fit the data better.
+8.3 The balance between overfitting and underfitting
+None of the methods discussed above are silver bullets, meaning, they don't always work.
+
+And preventing overfitting and underfitting is possibly the most active area of machine learning research.
+
+Since everyone wants their models to fit better (less underfitting) but not so good they don't generalize well and perform in the real world (less overfitting).
+
+There's a fine line between overfitting and underfitting.
+
+Because too much of each can cause the other.
+
+Transfer learning is perhaps one of the most powerful techniques when it comes to dealing with both overfitting and underfitting on your own problems.
+
+Rather than handcraft different overfitting and underfitting techniques, transfer learning enables you to take an already working model in a similar problem space to yours (say one from paperswithcode.com/sota or Hugging Face models) and apply it to your own dataset.
+
+We'll see the power of transfer learning in a later notebook.
+"""
